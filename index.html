@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Butler</title>
+    <style>
+        textarea {
+            resize: none;
+        }
+        span.feature:hover {
+            cursor: pointer;
+            cursor: hand;
+            border: #242424 1px solid;
+        }
+        #url-shorten-submit:hover {
+            cursor: pointer;
+            cursor: hand;
+        }
+        button {
+            font-size: 1.3em;
+        }
+        @media (max-width:1024px) {
+            textarea {
+                width: 80%;
+            }
+            main {
+                text-align: center;
+            }
+        }
+        @media (min-width:1025px) {
+            textarea {
+                resize: none;
+                width: 50%;
+            }
+            main {
+                padding-left: 20%;
+                padding-right: 20%;
+            }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Butler</h1>
+    <h3>
+        <span class="feature" id="url-shorten-feature">URL Shorten</span>
+        /
+        <span class="feature" id="comment-feature">Comment</span>
+        /
+        <span class="feature" id="secret-file-feature">Secret File</span>
+    </h3>
+    <section id="url-shorten" class="feature-section">
+        <textarea name="" id="url-shorten-input" cols="30" rows="10" ></textarea><br>
+        <button id="url-shorten-submit">Shorten!</button>
+        <section id="url-shorten-results"></section>
+    </section>
+    <section id="comment">
+        <h1 id="comment-title"></h1>
+        <section id="comment-new">
+            <h2>Comment on
+                <textarea type="text" id="comment-set-key-input"></textarea>
+                <button id="comment-set-key-submit">go</button>
+            </h2>
+        </section>
+        <section id="comment-key">
+
+        </section>
+    </section>
+    <section id="secret-file">
+        <section id="secret-file-set-filename">
+            <h2>Your filename:
+                <textarea type="text" id="secret-filename-input"></textarea>
+                <button id="secret-filename-submit">go</button>
+            </h2>
+        </section>
+        <section id="secret-file-download">
+            <h2 id="secret-file-title"></h2>
+            <h2>Code: <input type="text" id="secret-file-code-input"></h2>
+            <h2><button id="secret-file-do-download">Download</button></h2>
+        </section>
+    </section>
+</main>
+</body>
+<script>
+    // const apiBase = "https://butler.waifoo.net"
+    const apiBase = "http://butler.local:8000"
+    const urlShortenSection = document.getElementById("url-shorten")
+    const commentSection = document.getElementById("comment")
+    const secretFileSection = document.getElementById("secret-file")
+    const sections = [urlShortenSection, commentSection, secretFileSection]
+    function setupSecretFileSection() {
+        const filename = params["secret_filename"]
+        const setFilenameSection = document.getElementById("secret-file-set-filename")
+        const downloadSection = document.getElementById("secret-file-download")
+        const secretFileTitle = document.getElementById("secret-file-title")
+        if (!filename) {
+            setFilenameSection.style.display = "block"
+            downloadSection.style.display = "none"
+        } else {
+            secretFileTitle.innerText = `Downloading ${filename}`
+            setFilenameSection.style.display = "none"
+            downloadSection.style.display = "block"
+        }
+    }
+    function setupCommentSection() {
+        const key = params["comment_key"]
+        const title = document.getElementById("comment-title")
+        const commentNew = document.getElementById("comment-new")
+        const commentKey = document.getElementById("comment-key")
+        if (!key) {
+            title.innerText = "Comment"
+            commentNew.style.display = "block"
+            commentKey.style.display = "none"
+        } else {
+            title.innerText = `Comments on ${key}`
+            fetchComments(key)
+            commentNew.style.display = "none"
+            commentKey.style.display = "block"
+        }
+    }
+    async function fetchComments(key) {
+        await fetch(`${apiBase}/core/comments/?key=${key}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            },
+        })
+            .then(resp => resp.json())
+            .then(data => {
+                let commentHTML = ""
+                if (data["comments"].length === 0) {
+                    commentHTML = "No comments so far."
+                } else {
+                    for (let comment of data["comments"]) {
+                        const html = `<p>${comment["poster"]} said: <br> ${comment["text"]}</p><hr>`
+                        commentHTML += html
+                    }
+                }
+                document.getElementById("comment-key").innerHTML = commentHTML
+            })
+    }
+
+
+    let params = new Proxy(new URLSearchParams(window.location.search), {
+        get: (searchParams, prop) => searchParams.get(prop),
+    })
+    const sectionId = params["section"]
+
+    function hideAllSectionsBut(section) {
+        for (let e of sections) {
+            if (e === section) {
+                section.style.display = "block"
+                section.style.opacity = "1"
+                section.style.visibility = "visible"
+                switch (section.id) {
+                    case "comment": {
+                        setupCommentSection()
+                        break
+                    }
+                    case "secret-file": {
+                        setupSecretFileSection()
+                        break
+                    }
+                    default:
+                        break
+                }
+            } else {
+                e.style.display = "none"
+                e.style.opacity = "0"
+                e.style.visibility = "hidden"
+            }
+        }
+    }
+
+
+    hideAllSectionsBut(document.getElementById(sectionId) || urlShortenSection);
+
+    async function shortenURL(e) {
+        e.preventDefault()
+        const textarea = document.getElementById("url-shorten-input")
+        if (!textarea.value) {
+            return
+        }
+        const url = textarea.value
+        console.log(`shortening ${url}`)
+        await fetch(`${apiBase}/core/shorten/`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({url: url})
+        })
+            .then(resp => resp.json())
+            .then(data => {
+                if (!data.url) {
+                    return;
+                }
+                textarea.value = ""
+                const resultSection = document.getElementById("url-shorten-results")
+                const result = document.createElement("h2")
+                result.innerHTML = `${url} -> <a href="${data.url}" target="_blank">${data.url}</a>`
+                resultSection.appendChild(result)
+            })
+    }
+    function clearSearch(section) {
+        const searchParams = new URLSearchParams();
+        searchParams.set("section", section.id);
+        window.location.search = searchParams.toString();
+    }
+    document.getElementById("url-shorten-submit").addEventListener("click", shortenURL)
+    document.getElementById("url-shorten-feature").addEventListener("click", _ => {
+        hideAllSectionsBut(urlShortenSection)
+        clearSearch(urlShortenSection)
+    })
+    document.getElementById("comment-feature").addEventListener("click", _ => {
+        hideAllSectionsBut(commentSection)
+        clearSearch(commentSection)
+
+    })
+    document.getElementById("secret-file-feature").addEventListener("click", _ => {
+        hideAllSectionsBut(secretFileSection)
+        clearSearch(secretFileSection)
+    })
+    document.getElementById("comment-set-key-submit").addEventListener("click", _ => {
+        const key = document.getElementById("comment-set-key-input").value
+        window.location = `/?section=comment&comment_key=${key}`
+    })
+    document.getElementById("secret-filename-submit").addEventListener("click", _ => {
+        const filename = document.getElementById("secret-filename-input").value
+        window.location = `/?section=secret-file&secret_filename=${filename}`
+    })
+    document.getElementById("secret-file-do-download").addEventListener("click", _ => {
+        const code = document.getElementById("secret-file-code-input").value
+        const url = `${apiBase}/core/protected_file/?filename=${params["secret_filename"]}&code=${code}`
+        window.open(url, '_blank').focus();
+    })
+
+</script>
+</html>
