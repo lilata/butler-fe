@@ -183,6 +183,7 @@
             return
         }
         const url = textarea.value
+        textarea.value = ""
         console.log(`shortening ${url}`)
         await fetch(`${apiBase}/core/shorten/`, {
             method: 'POST',
@@ -197,7 +198,6 @@
                 if (!data.url) {
                     return;
                 }
-                textarea.value = ""
                 const resultSection = document.getElementById("url-shorten-results")
                 const result = document.createElement("h2")
                 result.innerHTML = `${url} -> <a href="${data.url}" target="_blank">${data.url}</a>`
